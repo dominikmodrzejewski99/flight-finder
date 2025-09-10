@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   // Help with hydration issues
   reactStrictMode: true,
   
+  // Set Turbo root to current directory to avoid lockfile warnings
+  turbopack: {
+    root: __dirname,
+  },
+  
   // Suppress hydration warnings for known browser extension attributes
   async headers() {
     return [

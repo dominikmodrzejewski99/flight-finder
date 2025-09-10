@@ -66,7 +66,7 @@ export default function Hero() {
       if (searchData.departure) params.set('departure', searchData.departure);
       if (searchData.tripType === 'round-trip' && searchData.return) params.set('return', searchData.return);
 
-      const res = await fetch(`test.api.amadeus.com/v1/shopping/flight-dates?${params.toString()}`, { cache: 'no-store' });
+      const res = await fetch(`/api/flights?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Request failed');
       const json = (await res.json()) as AmadeusCheapestDatesResponse;
       setResults(Array.isArray(json?.data) ? json.data : []);
