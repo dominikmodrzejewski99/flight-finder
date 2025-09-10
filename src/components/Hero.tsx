@@ -13,6 +13,20 @@ import {
   Globe
 } from 'lucide-react';
 
+type FlightDateItem = {
+  type: 'flight-date';
+  origin: string;
+  destination: string;
+  departureDate: string;
+  returnDate?: string;
+  price?: { total?: string };
+  links?: { flightDestinations?: string; flightOffers?: string };
+};
+
+type AmadeusCheapestDatesResponse = {
+  data: FlightDateItem[];
+};
+
 export default function Hero() {
   const [searchData, setSearchData] = useState({
     from: '',
@@ -23,6 +37,10 @@ export default function Hero() {
     tripType: 'round-trip'
   });
 
+  const [results, setResults] = useState<FlightDateItem[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const stats = [
     { label: 'Happy Travelers', value: '2.4M+', icon: Users },
     { label: 'Money Saved', value: '$847M', icon: TrendingDown },
@@ -30,9 +48,33 @@ export default function Hero() {
     { label: 'Avg. Search Time', value: '0.8s', icon: Zap }
   ];
 
-  const handleSearch = () => {
-    console.log('Searching flights:', searchData);
-    // TODO: Integrate with Ryanair API
+  const handleSearch = async () => {
+    setError(null);
+    setResults(null);
+    if (!searchData.from || !searchData.to) {
+      setError('Please fill required fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        from: searchData.from,
+        to: searchData.to,
+        tripType: searchData.tripType,
+      });
+      if (searchData.departure) params.set('departure', searchData.departure);
+      if (searchData.tripType === 'round-trip' && searchData.return) params.set('return', searchData.return);
+
+      const res = await fetch(`test.api.amadeus.com/v1/shopping/flight-dates?${params.toString()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Request failed');
+      const json = (await res.json()) as AmadeusCheapestDatesResponse;
+      setResults(Array.isArray(json?.data) ? json.data : []);
+    } catch {
+      setError('Service unavailable');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -196,11 +238,35 @@ export default function Hero() {
             <button 
               className="w-full inline-flex items-center justify-center px-6 py-4 text-lg font-semibold rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 group"
               onClick={handleSearch}
+              disabled={loading}
             >
               <Search className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-              Search Flights
+              {loading ? 'Searching…' : 'Search Flights'}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </button>
+
+            {/* Results / Error */}
+            <div className="mt-8 text-left">
+              {error && (
+                <div className="text-red-600 text-sm mb-4">{error}</div>
+              )}
+
+              {Array.isArray(results) && results.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {results.map((item, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm">
+                      <div className="text-sm text-gray-600 mb-1">{item.origin} → {item.destination}</div>
+                      <div className="font-semibold text-gray-900">{item.departureDate}{item.returnDate ? ` → ${item.returnDate}` : ''}</div>
+                      <div className="text-indigo-600 font-bold mt-1">{item.price?.total ? `€${item.price.total}` : '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {Array.isArray(results) && results.length === 0 && !loading && !error && (
+                <div className="text-sm text-gray-600">No results</div>
+              )}
+            </div>
           </motion.div>
 
           {/* Stats */}
