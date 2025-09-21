@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, 
-  MapPin, 
   Calendar, 
   Users, 
   ArrowRight,
@@ -12,19 +11,21 @@ import {
   TrendingDown,
   Globe
 } from 'lucide-react';
+import AirportAutocomplete from './AirportAutocomplete';
+import type { Airport } from '@/lib/airports';
 
-type FlightDateItem = {
-  type: 'flight-date';
+type FlightDestinationItem = {
+  type: 'flight-destination';
   origin: string;
   destination: string;
   departureDate: string;
   returnDate?: string;
   price?: { total?: string };
-  links?: { flightDestinations?: string; flightOffers?: string };
+  links?: { flightDates?: string; flightOffers?: string };
 };
 
-type AmadeusCheapestDatesResponse = {
-  data: FlightDateItem[];
+type AmadeusFlightDestinationsResponse = {
+  data: FlightDestinationItem[];
 };
 
 export default function Hero() {
@@ -37,7 +38,12 @@ export default function Hero() {
     tripType: 'round-trip'
   });
 
-  const [results, setResults] = useState<FlightDateItem[] | null>(null);
+  const [selectedAirports, setSelectedAirports] = useState({
+    from: null as Airport | null,
+    to: null as Airport | null
+  });
+
+  const [results, setResults] = useState<FlightDestinationItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,27 +57,68 @@ export default function Hero() {
   const handleSearch = async () => {
     setError(null);
     setResults(null);
-    if (!searchData.from || !searchData.to) {
-      setError('Please fill required fields');
+    
+    // Sprawdź czy mamy wybrane lotniska/miasta
+    if (!searchData.from) {
+      setError('Please select departure city');
       return;
     }
 
     try {
       setLoading(true);
+      
+      // Dla flight-destinations API potrzebujemy tylko origin (punkt wyjścia)
       const params = new URLSearchParams({
-        from: searchData.from,
-        to: searchData.to,
-        tripType: searchData.tripType,
+        origin: searchData.from // Używamy kodu IATA
       });
-      if (searchData.departure) params.set('departure', searchData.departure);
-      if (searchData.tripType === 'round-trip' && searchData.return) params.set('return', searchData.return);
-
-      const res = await fetch(`/api/flights?${params.toString()}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Request failed');
-      const json = (await res.json()) as AmadeusCheapestDatesResponse;
+      
+      // Dodaj opcjonalne parametry
+      if (searchData.departure) {
+        // Dla flight-destinations możemy ustawić zakres dat
+        const departureDate = new Date(searchData.departure);
+        const endDate = new Date(departureDate);
+        endDate.setMonth(endDate.getMonth() + 2); // 2 miesiące do przodu
+        
+        params.set('departureDate', `${searchData.departure},${endDate.toISOString().split('T')[0]}`);
+      }
+      
+      if (searchData.tripType) {
+        params.set('oneWay', searchData.tripType === 'one-way' ? 'true' : 'false');
+      }
+      
+      // Dodaj duration (1-15 dni) - typowy zakres dla urlopów
+      params.set('duration', '1,15');
+      params.set('viewBy', 'DURATION');
+      
+      console.log('🚀 Searching with params:', params.toString());
+      
+      const res = await fetch(`/api/shopping/flight-dates?${params.toString()}`, { 
+        cache: 'no-store' 
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
+      
+      const json = (await res.json()) as AmadeusFlightDestinationsResponse;
+      console.log('✅ Search results:', json);
+      
       setResults(Array.isArray(json?.data) ? json.data : []);
-    } catch {
-      setError('Service unavailable');
+      
+      if (!json?.data || json.data.length === 0) {
+        setError('No flights found for selected criteria');
+      }
+      
+    } catch (err: any) {
+      console.error('❌ Search error:', err);
+      
+      // Specjalna wiadomość dla błędu 1797 (brak danych)
+      if (err.message.includes('No response found') || err.message.includes('1797')) {
+        setError(`No flights available from ${selectedAirports.from?.name || searchData.from}. Try Madrid or Barcelona for demo purposes (test API has limited data).`);
+      } else {
+        setError(err.message || 'Service unavailable');
+      }
     } finally {
       setLoading(false);
     }
@@ -140,33 +187,25 @@ export default function Hero() {
 
             {/* Search Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">From</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Origin city"
-                    className="w-full px-4 py-3 pl-10 text-gray-900 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 placeholder-gray-500"
-                    value={searchData.from}
-                    onChange={(e) => setSearchData({...searchData, from: e.target.value})}
-                  />
-                </div>
-              </div>
+              <AirportAutocomplete
+                label="From"
+                placeholder="Search departure city..."
+                value={searchData.from}
+                onChange={(value, airport) => {
+                  setSearchData({...searchData, from: value});
+                  setSelectedAirports({...selectedAirports, from: airport || null});
+                }}
+              />
 
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">To</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Destination city"
-                    className="w-full px-4 py-3 pl-10 text-gray-900 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 placeholder-gray-500"
-                    value={searchData.to}
-                    onChange={(e) => setSearchData({...searchData, to: e.target.value})}
-                  />
-                </div>
-              </div>
+              <AirportAutocomplete
+                label="To (Optional)"
+                placeholder="Search destination city..."
+                value={searchData.to}
+                onChange={(value, airport) => {
+                  setSearchData({...searchData, to: value});
+                  setSelectedAirports({...selectedAirports, to: airport || null});
+                }}
+              />
 
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Departure</label>
@@ -252,14 +291,34 @@ export default function Hero() {
               )}
 
               {Array.isArray(results) && results.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {results.map((item, idx) => (
-                    <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm">
-                      <div className="text-sm text-gray-600 mb-1">{item.origin} → {item.destination}</div>
-                      <div className="font-semibold text-gray-900">{item.departureDate}{item.returnDate ? ` → ${item.returnDate}` : ''}</div>
-                      <div className="text-indigo-600 font-bold mt-1">{item.price?.total ? `€${item.price.total}` : '—'}</div>
-                    </div>
-                  ))}
+                <div>
+                  <div className="text-sm text-gray-600 mb-4">
+                    Found {results.length} destinations from {selectedAirports.from?.name || searchData.from}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                    {results.map((item, idx) => (
+                      <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="text-sm text-gray-600">{item.origin} → {item.destination}</div>
+                          <div className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
+                            {item.type.replace('-', ' ')}
+                          </div>
+                        </div>
+                        <div className="font-semibold text-gray-900 mb-1">
+                          {new Date(item.departureDate).toLocaleDateString()}
+                          {item.returnDate && ` → ${new Date(item.returnDate).toLocaleDateString()}`}
+                        </div>
+                        <div className="text-indigo-600 font-bold text-lg">
+                          {item.price?.total ? `€${item.price.total}` : 'Price available'}
+                        </div>
+                        {item.links?.flightOffers && (
+                          <button className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 underline">
+                            View offers →
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
