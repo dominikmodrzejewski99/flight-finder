@@ -9,7 +9,11 @@ import {
   ArrowRight,
   Zap,
   TrendingDown,
-  Globe
+  Globe,
+  Plane,
+  Clock,
+  Euro,
+  ExternalLink
 } from 'lucide-react';
 import AirportAutocomplete from './AirportAutocomplete';
 import type { Airport } from '@/lib/airports';
@@ -104,9 +108,23 @@ export default function Hero() {
       const json = (await res.json()) as AmadeusFlightDestinationsResponse;
       console.log('✅ Search results:', json);
       
-      setResults(Array.isArray(json?.data) ? json.data : []);
+      let filteredResults = Array.isArray(json?.data) ? json.data : [];
       
-      if (!json?.data || json.data.length === 0) {
+      // Jeśli użytkownik wybrał konkretną destynację (to), filtruj wyniki
+      if (searchData.to && selectedAirports.to) {
+        filteredResults = filteredResults.filter(flight => 
+          flight.destination === searchData.to
+        );
+        
+        if (filteredResults.length === 0 && json?.data?.length > 0) {
+          setError(`No direct flights found from ${selectedAirports.from?.name} to ${selectedAirports.to?.name}. Showing all destinations from ${selectedAirports.from?.name}.`);
+          filteredResults = json.data;
+        }
+      }
+      
+      setResults(filteredResults);
+      
+      if (filteredResults.length === 0) {
         setError('No flights found for selected criteria');
       }
       
@@ -292,30 +310,112 @@ export default function Hero() {
 
               {Array.isArray(results) && results.length > 0 && (
                 <div>
-                  <div className="text-sm text-gray-600 mb-4">
-                    Found {results.length} destinations from {selectedAirports.from?.name || searchData.from}
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                      <div className="text-sm text-blue-700">
+                        <strong>{results.length}</strong> flight{results.length !== 1 ? 's' : ''} found
+                        {selectedAirports.to ? (
+                          <span> from <strong>{selectedAirports.from?.name}</strong> to <strong>{selectedAirports.to?.name}</strong></span>
+                        ) : (
+                          <span> from <strong>{selectedAirports.from?.name || searchData.from}</strong></span>
+                        )}
+                      </div>
+                      {selectedAirports.to && (
+                        <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                          Direct flights only
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 max-h-[500px] overflow-y-auto pr-2 -mr-2">
                     {results.map((item, idx) => (
-                      <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="text-sm text-gray-600">{item.origin} → {item.destination}</div>
-                          <div className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
-                            {item.type.replace('-', ' ')}
+                      <div key={idx} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 hover:border-indigo-300 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                        {/* Gradient accent */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                        
+                        <div className="p-6">
+                          {/* Header with route */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full">
+                                <Plane className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <div className="text-lg font-bold text-gray-900">
+                                  {item.origin} → {item.destination}
+                                </div>
+                                <div className="text-xs text-gray-500 uppercase tracking-wide">
+                                  {item.type.replace('-', ' ')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Travel dates */}
+                          <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Calendar className="w-4 h-4 text-gray-600" />
+                              <span className="text-sm font-medium text-gray-700">Travel Dates</span>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium">Departure:</span>
+                                <span className="text-indigo-600 font-medium">
+                                  {new Date(item.departureDate).toLocaleDateString('en-GB', { 
+                                    weekday: 'short', 
+                                    day: 'numeric', 
+                                    month: 'short' 
+                                  })}
+                                </span>
+                              </div>
+                              {item.returnDate && (
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <span className="font-medium">Return:</span>
+                                  <span className="text-purple-600 font-medium">
+                                    {new Date(item.returnDate).toLocaleDateString('en-GB', { 
+                                      weekday: 'short', 
+                                      day: 'numeric', 
+                                      month: 'short' 
+                                    })}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Duration info */}
+                          {item.returnDate && (
+                            <div className="mb-4 flex items-center space-x-2 text-sm text-gray-600">
+                              <Clock className="w-4 h-4" />
+                              <span>
+                                {Math.ceil((new Date(item.returnDate).getTime() - new Date(item.departureDate).getTime()) / (1000 * 60 * 60 * 24))} days
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Price and CTA */}
+                          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                            <div className="flex items-center space-x-2">
+                              <Euro className="w-5 h-5 text-green-600" />
+                              <div>
+                                <div className="text-2xl font-bold text-green-600">
+                                  {item.price?.total ? `€${item.price.total}` : 'Available'}
+                                </div>
+                                <div className="text-xs text-gray-500">per person</div>
+                              </div>
+                            </div>
+                            
+                            {item.links?.flightOffers && (
+                              <button className="group/btn flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-md hover:shadow-lg">
+                                <span className="text-sm font-medium">Book</span>
+                                <ExternalLink className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="font-semibold text-gray-900 mb-1">
-                          {new Date(item.departureDate).toLocaleDateString()}
-                          {item.returnDate && ` → ${new Date(item.returnDate).toLocaleDateString()}`}
-                        </div>
-                        <div className="text-indigo-600 font-bold text-lg">
-                          {item.price?.total ? `€${item.price.total}` : 'Price available'}
-                        </div>
-                        {item.links?.flightOffers && (
-                          <button className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 underline">
-                            View offers →
-                          </button>
-                        )}
+
+                        {/* Hover effect overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/0 to-purple-50/0 group-hover:from-indigo-50/20 group-hover:to-purple-50/20 transition-all duration-300 pointer-events-none rounded-2xl"></div>
                       </div>
                     ))}
                   </div>

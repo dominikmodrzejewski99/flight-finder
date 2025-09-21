@@ -181,22 +181,24 @@ export default function AirportAutocomplete({
             <button
               key={airport.code}
               type="button"
-              className={`w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors border-b border-gray-100 last:border-b-0 ${
+              className={`w-full px-4 py-4 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors border-b border-gray-100 last:border-b-0 ${
                 index === selectedIndex ? 'bg-indigo-50 text-indigo-700' : 'text-gray-900'
               }`}
               onClick={() => handleSelectAirport(airport)}
             >
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="font-medium">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">
                     {airport.name} ({airport.code})
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 truncate">
                     {airport.country}
-                    {airport.airport && ` • ${airport.airport}`}
+                    {airport.airport && (
+                      <span className="hidden sm:inline"> • {airport.airport}</span>
+                    )}
                   </div>
                 </div>
-                <div className="text-sm font-mono text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
+                <div className="text-sm font-mono text-indigo-600 bg-indigo-100 px-2 py-1 rounded flex-shrink-0 self-start sm:self-center">
                   {airport.code}
                 </div>
               </div>
@@ -207,9 +209,21 @@ export default function AirportAutocomplete({
 
       {/* Selected Airport Info */}
       {selectedAirport && (
-        <div className="mt-2 text-xs text-green-600 flex items-center">
-          <MapPin className="w-3 h-3 mr-1" />
-          Selected: {selectedAirport.name}, {selectedAirport.country} ({selectedAirport.code})
+        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center text-sm text-green-700">
+            <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">
+                {selectedAirport.name} ({selectedAirport.code})
+              </div>
+              <div className="text-xs text-green-600 truncate">
+                {selectedAirport.country}
+                {selectedAirport.airport && (
+                  <span className="hidden sm:inline"> • {selectedAirport.airport}</span>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
